@@ -23,15 +23,23 @@ data:
     srt: no
 
     pathDefaults:
-      runOnReady: >
-        ffmpeg -nostdin -hide_banner -loglevel warning
-        -i rtsp://localhost:8554/$MTX_PATH
-        -c:v copy -c:a aac -ar 44100 -b:a 128k
-        -f flv rtmp://rtmp.live.svc.cluster.local:1935/salon/$MTX_PATH?$MTX_QUERY
+      # A wrapper script, not inline ffmpeg: mediamtx percent-encodes '=' in $MTX_QUERY
+      # (key%3D...), so the script URL-decodes it before handing the publish key to
+      # nginx-rtmp. MTX_PATH is the channel; MTX_QUERY carries ?key=<key>.
+      runOnReady: sh /bridge.sh $MTX_PATH $MTX_QUERY
       runOnReadyRestart: yes
 
     paths:
       all_others:
+  bridge.sh: |
+    #!/bin/sh
+    # Bridge a WHIP/WebRTC path to the existing nginx-rtmp ingest.
+    path="$1"
+    query=$(printf '%s' "$2" | sed 's/%3D/=/g; s/%26/\&/g')
+    exec ffmpeg -nostdin -hide_banner -loglevel warning \
+      -rtsp_transport tcp -i "rtsp://localhost:8554/$path" \
+      -c:v copy -c:a aac -ar 44100 -b:a 128k \
+      -f flv "rtmp://rtmp.live.svc.cluster.local:1935/salon/$path?$query"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,6 +50,10 @@ metadata:
     app: mediamtx
 spec:
   replicas: 1
+  # hostNetwork singleton: kill the old pod before starting the new one, or the new pod
+  # can't bind bleu's ports (8889/8189) and hangs Pending.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mediamtx
@@ -65,6 +77,9 @@ spec:
             - name: config
               mountPath: /mediamtx.yml
               subPath: mediamtx.yml
+            - name: config
+              mountPath: /bridge.sh
+              subPath: bridge.sh
           readinessProbe:
             tcpSocket: { port: 8889 }
             initialDelaySeconds: 3
@@ -82,8 +97,6 @@ metadata:
   labels:
     app: mediamtx
 spec:
-  # ClusterIP for the WHIP signaling only (authd proxies to it). WebRTC media rides the
-  # host network on bleu:8189/udp, advertised via webrtcAdditionalHosts.
   type: ClusterIP
   selector:
     app: mediamtx

@@ -24,11 +24,9 @@ srt: no
 # nagato still validates the key, so a wrong key never goes live. Video is passed through
 # (browser is asked for H.264); audio is transcoded Opus -> AAC for FLV/RTMP.
 pathDefaults:
-  runOnReady: >
-    ffmpeg -nostdin -hide_banner -loglevel warning
-    -i rtsp://localhost:8554/$MTX_PATH
-    -c:v copy -c:a aac -ar 44100 -b:a 128k
-    -f flv rtmp://rtmp.live.svc.cluster.local:1935/salon/$MTX_PATH?$MTX_QUERY
+  # bridge.sh URL-decodes $MTX_QUERY (mediamtx percent-encodes '=' to %3D) so nginx-rtmp
+  # parses ?key= correctly, then pushes RTSP -> RTMP.
+  runOnReady: sh /bridge.sh $MTX_PATH $MTX_QUERY
   runOnReadyRestart: yes
 
 paths:
