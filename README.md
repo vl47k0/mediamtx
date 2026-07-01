@@ -43,11 +43,18 @@ The goemon **Broadcaster** component (`src/components/Broadcaster.tsx` +
 `src/services/WhipPublisher.ts`) is the publisher: `getUserMedia` → `RTCPeerConnection` (H.264
 preferred) → WHIP POST → local preview.
 
-## Hardening TODO (this is a prototype)
+## Auth (implemented)
 
-- Add mediamtx `authHTTPAddress` → a nagato hook so bad publishes are rejected at ingest, not just
-  at the RTMP bridge.
-- Short-lived publish tokens instead of handing the long-lived channel key to the browser.
+- **Short-lived publish tokens.** naruto `/ingest/` returns a channel-scoped HMAC token
+  (`<channel>.<exp>.<sig>`, ~1h), never the long-lived channel key.
+- **mediamtx `authHTTPAddress`** → naruto `/api/v1/whip-auth/` validates the token on every WHIP
+  publish (rejecting bad publishes at ingest) and only allows the internal RTSP read from
+  localhost (closing the hostNetwork RTSP-pull hole).
+- nginx-rtmp `on_publish` (nagato) accepts the token too, so the bridge stays keyless and the
+  per-channel auth stays intact. Shared `INGEST_TOKEN_SECRET` across naruto + nagato.
+
+## Hardening TODO
+
+- Set a real `INGEST_TOKEN_SECRET` via a doodle secret (currently a shared dev default).
 - TURN server for broadcasters outside the LAN.
 - Move the deploy into doodle (currently a hand-rolled manifest).
-# mediamtx
