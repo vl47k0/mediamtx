@@ -1,0 +1,35 @@
+logLevel: info
+logDestinations: [stdout]
+
+# WHIP (WebRTC) ingest. hostNetwork pins this to bleu (192.168.1.53) so ICE sees real
+# source IPs (no klipper SNAT) and the advertised host candidate is reachable on the LAN.
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: [192.168.1.53]
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+# Internal RTSP the bridge pulls from; not exposed.
+rtsp: yes
+rtspAddress: :8554
+
+# Egress protocols we don't use — viewers come through nginx-rtmp -> DASH/HLS.
+rtmp: no
+hls: no
+srt: no
+
+# Bridge every published path to the existing nginx-rtmp ingest. The WHIP publish URL
+# carries the channel as the path and ?key=... as the query; nginx-rtmp's on_publish ->
+# nagato still validates the key, so a wrong key never goes live. Video is passed through
+# (browser is asked for H.264); audio is transcoded Opus -> AAC for FLV/RTMP.
+pathDefaults:
+  runOnReady: >
+    ffmpeg -nostdin -hide_banner -loglevel warning
+    -i rtsp://localhost:8554/$MTX_PATH
+    -c:v copy -c:a aac -ar 44100 -b:a 128k
+    -f flv rtmp://rtmp.live.svc.cluster.local:1935/salon/$MTX_PATH?$MTX_QUERY
+  runOnReadyRestart: yes
+
+paths:
+  all_others:

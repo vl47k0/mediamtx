@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mediamtx-config
+  namespace: live
+data:
+  mediamtx.yml: |
+    logLevel: info
+    logDestinations: [stdout]
+
+    webrtcAddress: :8889
+    webrtcEncryption: no
+    webrtcLocalUDPAddress: :8189
+    webrtcAdditionalHosts: [192.168.1.53]
+    webrtcICEServers2:
+      - url: stun:stun.l.google.com:19302
+
+    rtsp: yes
+    rtspAddress: :8554
+
+    rtmp: no
+    hls: no
+    srt: no
+
+    pathDefaults:
+      runOnReady: >
+        ffmpeg -nostdin -hide_banner -loglevel warning
+        -i rtsp://localhost:8554/$MTX_PATH
+        -c:v copy -c:a aac -ar 44100 -b:a 128k
+        -f flv rtmp://rtmp.live.svc.cluster.local:1935/salon/$MTX_PATH?$MTX_QUERY
+      runOnReadyRestart: yes
+
+    paths:
+      all_others:
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx
+  namespace: live
+  labels:
+    app: mediamtx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mediamtx
+  template:
+    metadata:
+      labels:
+        app: mediamtx
+    spec:
+      # Pin to bleu and use its network directly so WebRTC ICE sees real IPs.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: bleu
+      containers:
+        - name: mediamtx
+          image: bluenviron/mediamtx:latest-ffmpeg
+          ports:
+            - { name: whip, containerPort: 8889, protocol: TCP }
+            - { name: webrtc-udp, containerPort: 8189, protocol: UDP }
+          volumeMounts:
+            - name: config
+              mountPath: /mediamtx.yml
+              subPath: mediamtx.yml
+          readinessProbe:
+            tcpSocket: { port: 8889 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: mediamtx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mediamtx
+  namespace: live
+  labels:
+    app: mediamtx
+spec:
+  # ClusterIP for the WHIP signaling only (authd proxies to it). WebRTC media rides the
+  # host network on bleu:8189/udp, advertised via webrtcAdditionalHosts.
+  type: ClusterIP
+  selector:
+    app: mediamtx
+  ports:
+    - { name: whip, port: 8889, targetPort: 8889, protocol: TCP }
