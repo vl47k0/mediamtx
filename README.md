@@ -50,3 +50,4 @@ preferred) → WHIP POST → local preview.
 - Short-lived publish tokens instead of handing the long-lived channel key to the browser.
 - TURN server for broadcasters outside the LAN.
 - Move the deploy into doodle (currently a hand-rolled manifest).
+# mediamtx
