@@ -1,6 +1,11 @@
 logLevel: info
 logDestinations: [stdout]
 
+# Every publish/read is authorized by naruto: WHIP publishes need a valid short-lived
+# token; the internal RTSP read is allowed only from localhost.
+authMethod: http
+authHTTPAddress: http://naruto.live.svc.cluster.local:8005/api/v1/whip-auth/
+
 # WHIP (WebRTC) ingest. hostNetwork pins this to bleu (192.168.1.53) so ICE sees real
 # source IPs (no klipper SNAT) and the advertised host candidate is reachable on the LAN.
 webrtcAddress: :8889

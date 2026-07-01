@@ -8,6 +8,11 @@ data:
     logLevel: info
     logDestinations: [stdout]
 
+    # Every publish/read is authorized by naruto: WHIP publishes need a valid short-lived
+    # token; the internal RTSP read is allowed only from localhost.
+    authMethod: http
+    authHTTPAddress: http://naruto.live.svc.cluster.local:8005/api/v1/whip-auth/
+
     webrtcAddress: :8889
     webrtcEncryption: no
     webrtcLocalUDPAddress: :8189
