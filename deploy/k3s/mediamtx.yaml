@@ -83,6 +83,19 @@ spec:
           ports:
             - { name: whip, containerPort: 8889, protocol: TCP }
             - { name: webrtc-udp, containerPort: 8189, protocol: UDP }
+          # TURN relay (coturn on the ConoHa VM) added as ICE server #1 so mediamtx offers a
+          # relay candidate reachable by internet publishers. Password from the `turn-cred`
+          # secret — never in the committed config. See projects/gamma/docs/turn-setup.md.
+          env:
+            - name: MTX_WEBRTCICESERVERS2_1_URL
+              value: "turn:163.44.111.168:3478?transport=tcp"
+            - name: MTX_WEBRTCICESERVERS2_1_USERNAME
+              value: "odeon"
+            - name: MTX_WEBRTCICESERVERS2_1_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: turn-cred
+                  key: password
           volumeMounts:
             - name: config
               mountPath: /mediamtx.yml
